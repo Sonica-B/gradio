@@ -763,7 +763,7 @@ def _text_encoded_file_as_prompt(path: str) -> str:
         response.raise_for_status()
         name, contents = Path(httpx.URL(path).path).name, response.text
     else:
-        name, contents = Path(path).name, Path(path).read_text()
+        name, contents = Path(path).name, Path(path).read_text(encoding="utf-8")
     return f"\n## {name}\n{contents}"
 
 
@@ -977,7 +977,7 @@ def load_openapi(
             response.raise_for_status()
             content = response.text
         else:
-            with open(openapi_spec) as f:
+            with open(openapi_spec, encoding="utf-8") as f:
                 content = f.read()
 
         try:

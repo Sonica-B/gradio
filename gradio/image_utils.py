@@ -256,7 +256,7 @@ def extract_svg_content(image_file: str | Path) -> str:
         response.raise_for_status()
         return response.text
     else:
-        with open(image_file) as file:
+        with open(image_file, encoding="utf-8") as file:
             svg_content = file.read()
         return svg_content
 

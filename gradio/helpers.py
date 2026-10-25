@@ -224,7 +224,7 @@ class Examples:
                         + LOG_FILE
                     )
             else:
-                with open(Path(examples) / LOG_FILE) as logs:
+                with open(Path(examples) / LOG_FILE, encoding="utf-8") as logs:
                     examples = list(csv.reader(logs))
                     examples = [
                         examples[i][: len(inputs)] for i in range(1, len(examples))
