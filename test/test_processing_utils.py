@@ -8,6 +8,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -23,7 +24,7 @@ from gradio import components, data_classes, processing_utils, utils
 from gradio._vendor import ffmpy
 from gradio.context import LocalContext
 from gradio.exceptions import InvalidPathError
-from gradio.route_utils import API_PREFIX
+from gradio.route_utils import API_PREFIX, delete_files_created_by_app
 
 
 class TestTempFileManagement:
@@ -66,12 +67,31 @@ class TestTempFileManagement:
         cache_dir = tmp_path / "cache"
 
         cached = processing_utils.save_file_to_cache(source, cache_dir=str(cache_dir))
-        first_ctime = Path(cached).stat().st_ctime_ns
+        first_stat = Path(cached).stat()
+        first_age_ns = max(first_stat.st_ctime_ns, first_stat.st_mtime_ns)
         time.sleep(0.05)
         reused = processing_utils.save_file_to_cache(source, cache_dir=str(cache_dir))
 
+        # `delete_files_created_by_app` ages files by the later of ctime and mtime;
+        # on Windows `os.utime` only moves mtime because ctime is the creation time.
         assert reused == cached
-        assert Path(reused).stat().st_ctime_ns > first_ctime
+        reused_stat = Path(reused).stat()
+        assert max(reused_stat.st_ctime_ns, reused_stat.st_mtime_ns) > first_age_ns
+
+    def test_delete_files_created_by_app_keeps_a_recently_reused_copy(self, tmp_path):
+        source = tmp_path / "clip.txt"
+        source.write_text("content")
+        cache_dir = tmp_path / "cache"
+        cached = processing_utils.save_file_to_cache(source, cache_dir=str(cache_dir))
+
+        time.sleep(1)
+        processing_utils.save_file_to_cache(source, cache_dir=str(cache_dir))
+
+        # Created more than 0.5s ago but handed out again just now: on Windows only
+        # mtime reflects the second call, because ctime is the creation time.
+        blocks = SimpleNamespace(blocks={}, temp_file_sets=[{cached}])
+        delete_files_created_by_app(blocks, age=0.5)  # type: ignore
+        assert Path(cached).exists()
 
     def test_save_file_to_cache_leaves_nothing_behind_when_copy_fails(
         self, tmp_path, monkeypatch
